@@ -13,7 +13,30 @@ By considering these aspects and implementing the necessary functionality, we ca
 """
 
 
+from flask import Flask, request, jsonify
+from wumpus_game import WumpusGame
+from player import Player
 
+app = Flask(__name__)
+game = WumpusGame()  # Initialize the game
 
+@app.route('/move', methods=['POST'])
+def move_player():
+    try:
+        data = request.json
+        player_id = data['player_id']
+        new_position = data['new_position']
+        game.move_player(player_id, tuple(new_position))
+        return jsonify({"message": "Move successful", "new_state": game.get_game_state()}), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
+@app.route('/game_state', methods=['GET'])
+def game_state():
+    try:
+        return jsonify(game.get_game_state()), 200
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
+if __name__ == '__main__':
+    app.run(debug=True, host='0.0.0.0', port=5000)
