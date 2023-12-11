@@ -88,7 +88,19 @@ class WumpusGame:
         self.treasure_position = random.choice(possible_positions) if possible_positions else (0, 0)
         self.grid[self.treasure_position[0]][self.treasure_position[1]] = 'T'
 
-
+    def get_game_state(self):
+        """Return the current game state."""
+        return {
+            'grid': self.grid,
+            'players': [player.__dict__ for player in self.players],
+            'treasure_position': self.treasure_position,
+            'wumpuses': self.wumpuses,
+            'pits': self.pits,
+            'game_over': self.game_over,
+            'winner': self.winner,
+            'time_left': self.get_time_left()
+        }
+    
     def random_position(self):
         """Generate a random position within the grid."""
         return random.randint(0, GRID_SIZE - 1), random.randint(0, GRID_SIZE - 1)
@@ -134,3 +146,6 @@ class WumpusGame:
     def is_time_up(self):
        """Check if the game time limit has been reached."""
        return (time.time() - self.start_time) >= WumpusGame.TIME_LIMIT
+    def get_time_left(self):
+        """Return the time left in the game."""
+        return WumpusGame.TIME_LIMIT - (time.time() - self.start_time)
