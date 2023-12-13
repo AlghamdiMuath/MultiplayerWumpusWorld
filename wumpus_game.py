@@ -16,8 +16,8 @@ class WumpusGame:
         self.pits = []      # Initialize the list for Pits
     
         self.place_players()    # Corners
-        self.place_hazards('PIT', 2)  # Assuming 2 pits, should not be adjacent on in corners
-        self.place_hazards('W', 2)    # Assuming 2 Wumpuses, should not be adjacent on in corners
+        self.place_hazards2('PIT', 1)  # Assuming 2 pits, should not be adjacent on in corners
+        self.place_hazards2('W', 1)    # Assuming 2 Wumpuses, should not be adjacent on in corners
         self.place_treasure_equidistant()   # Should be reachable and equidistant by and from both players
         self.game_over = False
         self.winner = None
@@ -47,6 +47,40 @@ class WumpusGame:
                 elif item == 'W':
                     self.wumpuses.append((x, y))
         #print(f"Placed {item}: {self.pits if item == 'PIT' else self.wumpuses}")
+
+
+    def place_hazards2(self, item, count):
+            placed = 0
+            while placed < count:
+                x, y = self.random_position()
+                if self.grid[x][y] == '' or self.grid[x][y] == 'S' or self.grid[x][y] == 'B':
+                    self.grid[x][y] = self.grid[x][y] + item 
+                    placed += 1
+
+                    if item == 'PIT':
+                        self.pits.append((x, y))
+                        if x+1 < GRID_SIZE:
+                            self.grid[x+1][y] = self.grid[x+1][y] + "B" 
+                        if x-1 >= 0:
+                            self.grid[x-1][y] = self.grid[x-1][y] + "B" 
+                        if y+1 < GRID_SIZE:
+                            self.grid[x][y+1] = self.grid[x][y+1] + "B" 
+                        if y-1 >= 0:
+                            self.grid[x][y-1] = self.grid[x][y-1] + "B" 
+
+
+                    elif item == 'W':
+                        self.wumpuses.append((x, y))
+                        if x+1 < GRID_SIZE:
+                            self.grid[x+1][y] = self.grid[x+1][y] + "S" 
+                        if x-1 >= 0:
+                            self.grid[x-1][y] = self.grid[x-1][y] + "S" 
+                        if y+1 < GRID_SIZE:
+                            self.grid[x][y+1] = self.grid[x][y+1] + "S" 
+                        if y-1 >= 0:
+                            self.grid[x][y-1] = self.grid[x][y-1] + "S" 
+    
+
 
     def is_reachable(self, start, end):
         """Check if 'end' is reachable from 'start' without passing through hazards. Use BFS"""
@@ -87,6 +121,7 @@ class WumpusGame:
                             possible_positions.append((x, y))
         self.treasure_position = random.choice(possible_positions) if possible_positions else (0, 0)
         self.grid[self.treasure_position[0]][self.treasure_position[1]] = 'T'
+    
 
     def get_game_state(self):
         """Return the current game state."""
