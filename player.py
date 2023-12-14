@@ -1,7 +1,8 @@
 class Player:
-    def __init__(self, player_id, name, start_position=(0, 0)):
+    def __init__(self, player_id, name, start_position=(0, 0), game_id=None):
         self.player_id = player_id
         self.name = name
+        self.game_id = game_id  # New attribute to link player to game
         self.position = start_position  # tuple (0 <= x < 4, 0 <= y < 4)
         self.visited = set([start_position])  # Initialize with the starting position
         self.move_count = 0  # used in the leaderboard IF the player won

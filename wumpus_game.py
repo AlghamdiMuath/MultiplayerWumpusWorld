@@ -3,18 +3,49 @@
 import random
 from player import Player
 import time
-
+import threading
 GRID_SIZE = 4   # minimzed from 5*5 as instructed to keep it simple
-
 class WumpusGame:
     TIME_LIMIT = 180  # 3 minutes is the game length, maybe should be shorter 
-    def __init__(self):
+    games = {}  # Dictionary to manage multiple game instances
+    game_locks = {}  # To manage locks for each game for thread safety
+
+    @classmethod
+    def create_new_game(cls, game_id):
+        with threading.Lock():
+            if game_id in cls.games:
+                raise ValueError(f"Game ID {game_id} already exists.")
+            cls.games[game_id] = WumpusGame(game_id)
+            cls.game_locks[game_id] = threading.Lock()
+
+    @classmethod
+    def get_game(cls, game_id):
+        """Retrieve an existing game instance by its ID."""
+        return cls.games.get(game_id)
+
+    def end_game(self):
+        # End game logic
+        self.game_over = True
+        # Additional logic to determine the winner or other end-game scenarios
+        # ...
+        # Cleanup the game
+        WumpusGame.cleanup_game(self.game_id)
+
+    @classmethod
+    def cleanup_game(cls, game_id):
+        # Cleanup logic for a finished game
+        with cls.game_locks[game_id]:
+            del cls.games[game_id]
+            del cls.game_locks[game_id]
+
+    def __init__(self, game_id):
+        self.game_id = game_id
         self.start_time = time.time()
         self.grid = self.init_grid()
         self.players = []   # Should be two
         self.wumpuses = []  # Initialize the list for Wumpuses
         self.pits = []      # Initialize the list for Pits
-    
+
         self.place_players()    # Corners
         self.place_hazards('PIT', 2)  # Assuming 2 pits, should not be adjacent on in corners
         self.place_hazards('W', 2)    # Assuming 2 Wumpuses, should not be adjacent on in corners
@@ -22,45 +53,51 @@ class WumpusGame:
         self.game_over = False
         self.winner = None
 
+    def add_player(self, player_id, name):
+            with self.game_locks[self.game_id]:
+                if any(p.player_id == player_id for p in self.players):
+                    raise ValueError(f"Player ID {player_id} already exists in game {self.game_id}.")
+                player = Player(player_id, name, start_position=self.random_position())
+                self.players.append(player)
 
 
-def get_player_pov_game_state(self, player_id):
-    """Return the game state from the perspective of the specified player."""
-    player = next(p for p in self.players if p.player_id == player_id)
-    pov_grid = [['?' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
+    def get_player_pov_game_state(self, player_id):
+        """Return the game state from the perspective of the specified player."""
+        player = next(p for p in self.players if p.player_id == player_id)
+        pov_grid = [['?' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
 
-    for x in range(GRID_SIZE):
-        for y in range(GRID_SIZE):
-            if (x, y) in player.visited:
-                # Map the grid content to the specified naming convention
-                grid_content = self.grid[x][y]
-                if 'P' in grid_content:
-                    pov_grid[x][y] = 'P'
-                elif 'T' in grid_content:
-                    pov_grid[x][y] = 'T'
-                elif 'PIT' in grid_content:
-                    pov_grid[x][y] = 'PIT'
-                elif 'W' in grid_content:
-                    pov_grid[x][y] = 'W'
-                else:
-                    pov_grid[x][y] = 'V'  # V for visited
+        for x in range(GRID_SIZE):
+            for y in range(GRID_SIZE):
+                if (x, y) in player.visited:
+                    # Map the grid content to the specified naming convention
+                    grid_content = self.grid[x][y]
+                    if 'P' in grid_content:
+                        pov_grid[x][y] = 'P'
+                    elif 'T' in grid_content:
+                        pov_grid[x][y] = 'T'
+                    elif 'PIT' in grid_content:
+                        pov_grid[x][y] = 'PIT'
+                    elif 'W' in grid_content:
+                        pov_grid[x][y] = 'W'
+                    else:
+                        pov_grid[x][y] = 'V'  # V for visited
 
-                # Add adjacent cues
-                for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
-                    nx, ny = x + dx, y + dy
-                    if 0 <= nx < GRID_SIZE and 0 <= ny < GRID_SIZE:
-                        if 'B' in self.grid[nx][ny] and pov_grid[nx][ny] == '?':
-                            pov_grid[nx][ny] = 'B'  # Breeze
-                        elif 'S' in self.grid[nx][ny] and pov_grid[nx][ny] == '?':
-                            pov_grid[nx][ny] = 'S'  # Stench
+                    # Add adjacent cues
+                    for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
+                        nx, ny = x + dx, y + dy
+                        if 0 <= nx < GRID_SIZE and 0 <= ny < GRID_SIZE:
+                            if 'B' in self.grid[nx][ny] and pov_grid[nx][ny] == '?':
+                                pov_grid[nx][ny] = 'B'  # Breeze
+                            elif 'S' in self.grid[nx][ny] and pov_grid[nx][ny] == '?':
+                                pov_grid[nx][ny] = 'S'  # Stench
 
-    return {
-        'pov_grid': pov_grid,
-        'player_data': player.to_dict(),
-        'game_over': self.game_over,
-        'winner': self.winner,
-        'time_left': self.get_time_left()
-    }
+        return {
+            'pov_grid': pov_grid,
+            'player_data': player.to_dict(),
+            'game_over': self.game_over,
+            'winner': self.winner,
+            'time_left': self.get_time_left()
+        }
 
     def init_grid(self):
         """Initialize an empty grid."""
