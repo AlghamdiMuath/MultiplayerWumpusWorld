@@ -1,5 +1,4 @@
 // Store the current player position (initially set to box 7)
-
 const adjacent_list = {1: [2, 5],
               2: [1, 3, 6],
               3: [2, 4, 7],
@@ -17,13 +16,18 @@ const adjacent_list = {1: [2, 5],
               15: [11, 14, 16],
               16: [12, 15]};
 
-const socket = io('http://192.168.4.121:5000');
+const socket = io('http://192.168.1.103:5000');
+let currentPlayerId; // Variable to store the current player's ID
 
-// Handle connect event
+socket.on('player_id', (data) => {
+    currentPlayerId = data.player_id;
+    console.log("Received Player ID: ", currentPlayerId);
+    // Now you can use currentPlayerId in your game logic
+});
 socket.on('connect', () => {
     console.log('Connected to the server');
-    // You can perform any additional setup or join the game here...
 });
+
 
 // Handle disconnect event
 socket.on('disconnect', () => {
@@ -33,11 +37,15 @@ socket.on('disconnect', () => {
 
 function handleGridClick(event) {
     console.log(event.target.id);
-    const moveData = {
-        player_id: 'Player_1',
-        new_position: event.target.id
-    };
-    socket.emit('move', moveData);
+    if (currentPlayerId) {
+        const moveData = {
+            player_id: currentPlayerId,
+            new_position: event.target.id
+        };
+        socket.emit('move', moveData);
+    } else {
+        console.error("Player ID is not set.");
+    }
 }
 
 function updateGrid(new_state) {
@@ -60,7 +68,7 @@ socket.on('move_error', (error) => {
 });
 
 // Example of requesting the game state
-socket.emit('game_state');
+// socket.emit('game_state');
 
 // Handle game state update event
 socket.on('game_state_update', (data) => {
@@ -74,60 +82,34 @@ socket.on('game_state_error', (error) => {
     // Handle error feedback...
 });
 
-
-document.getElementById('createLobbyForm').addEventListener('submit', function(event) {
-    event.preventDefault();
-
-    const lobbyData = {
-        name: document.getElementById('lobbyName').value,
-        difficulty: document.getElementById('gameDifficulty').value,
-        maxPlayers: document.getElementById('maxPlayers').value
-    };
-
-    // AJAX request to server to create lobby
-    fetch('/create-lobby', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(lobbyData),
-    })
-    .then(response => response.json())
-    .then(data => {
-        console.log('Lobby created:', data);
-        // Redirect to lobby page or update UI accordingly
-    })
-    .catch((error) => {
-        console.error('Error:', error);
-    });
+socket.on('player_joined', (data) => {
+    console.log(data.message);
+    // Update the UI to reflect that a new player has joined.
 });
 
-document.getElementById('joinLobbyForm').addEventListener('submit', function(event) {
-    event.preventDefault();
+socket.on('waiting_for_opponent', (data) => {
+    console.log(data.message);
+    // Update the UI to show that the player is waiting for an opponent.
+});
 
-    const lobbyID = document.getElementById('lobbyID').value;
+socket.on('join_error', (error) => {
+    console.error(error.error);
+    // Display an error message to the user.
+});
 
-    // AJAX request to server to join lobby
-    fetch('/join-lobby', {
-        method: 'POST',
-        headers: {
-            'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ lobbyID }),
-    })
-    .then(response => {
-        if (!response.ok) {
-            throw new Error('Lobby join failed');
-        }
-        return response.json();
-    })
-    .then(data => {
-        console.log('Joined lobby:', data);
-        // Redirect to lobby page or update UI accordingly
-    })
-    .catch((error) => {
-        console.error('Error:', error.message);
-        // Show error feedback to the user
-        alert('Failed to join lobby: ' + error.message);
-    });
+document.getElementById('startGameBtn').addEventListener('click', function() {
+    console.log("Start Game button clicked. Emitting 'play_game' event.");
+    socket.emit('play_game');
+});
+
+socket.on('game_started', (data) => {
+    console.log(data.message);
+       // Here, you can request the player ID and the game state
+    // socket.emit('request_player_id');
+    socket.emit('game_state');
+    console.log("Requesting player ID and game state.");
+    window.location.href = '/index.html'; // Redirects to the game interface
+});
+socket.on('game_state_update', (data) => {
+    updateGrid(data.new_state); // Example function to update the UI based on the new game state
 });

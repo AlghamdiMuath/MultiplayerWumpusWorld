@@ -17,6 +17,7 @@ class WumpusGame:
                 raise ValueError(f"Game ID {game_id} already exists.")
             cls.games[game_id] = WumpusGame(game_id)
             cls.game_locks[game_id] = threading.Lock()
+        return game_id  # Return the game_id of the newly created game
 
     @classmethod
     def get_game(cls, game_id):
@@ -45,21 +46,54 @@ class WumpusGame:
         self.players = []   # Should be two
         self.wumpuses = []  # Initialize the list for Wumpuses
         self.pits = []      # Initialize the list for Pits
-
-        self.place_players()    # Corners
+        self.game_started = False
+        #self.place_players()    # Corners
         self.place_hazards('PIT', 2)  # Assuming 2 pits, should not be adjacent on in corners
         self.place_hazards('W', 2)    # Assuming 2 Wumpuses, should not be adjacent on in corners
-        self.place_treasure_equidistant()   # Should be reachable and equidistant by and from both players
         self.game_over = False
         self.winner = None
 
     def add_player(self, player_id, name):
-            with self.game_locks[self.game_id]:
-                if any(p.player_id == player_id for p in self.players):
-                    raise ValueError(f"Player ID {player_id} already exists in game {self.game_id}.")
-                player = Player(player_id, name, start_position=self.random_position())
-                self.players.append(player)
+        with self.game_locks[self.game_id]:
+            if any(p.player_id == player_id for p in self.players):
+                raise ValueError(f"Player ID {player_id} already exists in game {self.game_id}.")
+            if len(self.players) >= 2:
+                raise ValueError("Maximum number of players reached.")
 
+            # Determine the start position for the new player
+            start_position = self.determine_start_position()
+            player = Player(player_id, name, start_position=start_position)
+            self.players.append(player)
+            self.grid[start_position[0]][start_position[1]] = 'P'
+
+            self.check_start_conditions()
+
+    def determine_start_position(self):
+        """Determine the start position for a new player."""
+        # Implement logic to determine where the new player should start
+        # Example: (0, 0) for the first player, (GRID_SIZE-1, GRID_SIZE-1) for the second
+        if len(self.players) == 0:
+            return (0, 0)
+        elif len(self.players) == 1:
+            return (GRID_SIZE-1, GRID_SIZE-1)
+        else:
+            raise ValueError("No available positions for new player.")
+
+    def check_start_conditions(self):
+        """Check if the game meets the conditions to start."""
+        print(self.players, self.game_started)
+        if len(self.players) == 2 and not self.game_started:
+            self.place_treasure_equidistant()
+            self.start_game()
+            print("Should return true")
+            return True
+        else:
+            return False
+
+    def start_game(self):
+        """Start the game."""
+        self.game_started = True
+        print(f"Game {self.game_id} started with {len(self.players)} players.")
 
     def get_player_pov_game_state(self, player_id):
         """Return the game state from the perspective of the specified player."""
@@ -102,15 +136,6 @@ class WumpusGame:
     def init_grid(self):
         """Initialize an empty grid."""
         return [['' for _ in range(GRID_SIZE)] for _ in range(GRID_SIZE)]
-
-    def place_players(self):
-        """Place players on the grid."""
-        player_positions = [(0, 0), (GRID_SIZE-1, GRID_SIZE-1)]  # Assuming two players
-        for i, pos in enumerate(player_positions):
-            player_id = f"Player_{i+1}"
-            player = Player(player_id, player_id, pos)
-            self.players.append(player)
-            self.grid[pos[0]][pos[1]] = 'P'
 
     def place_hazards(self, item, count):
         placed = 0

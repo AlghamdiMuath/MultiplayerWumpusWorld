@@ -5,14 +5,20 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="stylesheet" href="../static/styless.css">
     <title>Game Menu</title>
+    <!-- Include Socket.IO Client Library -->
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <!-- Your Script -->
+    
 </head>
 <body>
     <div class="container">
         <h1>Welcome to the Game</h1>
         <div class="buttons">
-            <a href="startgame.html" class="start-game-btn">Start Game</a>
+            <button id="startGameBtn" class="start-game-btn">Start Game</button>
             <a href="leaderboard.html" class="leaderboard-btn">Leader Board</a>
         </div>
     </div>
+    <script src="../static/script.js"></script>
 </body>
+
 </html>

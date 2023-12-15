@@ -7,6 +7,7 @@ from flask import Flask, render_template
 from flask_socketio import SocketIO
 
 from threading import Lock
+from flask import request, jsonify
 
 from wumpus_game import WumpusGame
 from flask import request
@@ -19,23 +20,29 @@ game_instances = {}
 game_instance_lock = Lock()
 PLAYERS_TO_START = 2  # Define minimum number of players to start a game
 
-@socketio.on('connect')
-def handle_connect():
-    print('Client connected')
-    player = Player()
+# @socketio.on('connect')
+# def handle_connect(auth):
+#     player_id = generate_unique_id()
+#     player = Player(player_id, "Player Name")
+#     print('Client connected')
 
-    # Assign player to an existing game instance or create a new one
-    game_instance_id = find_available_game_instance() or create_game_instance()
-    WumpusGame.get_game(game_instance_id).add_player(id(player), player.name)
+#     game_instance_id = find_available_game_instance() or WumpusGame.create_new_game(player_id)
+#     game_instance = WumpusGame.get_game(game_instance_id)
+#     game_instances[game_instance_id] = game_instance
 
-    if WumpusGame.get_game(game_instance_id).is_ready_to_start():
-        WumpusGame.get_game(game_instance_id).start_game()
+#     if game_instance:
+#         game_instance.add_player(id(player), player.name)
+#         if game_instance.check_start_conditions():
+#             # The game has started, emit the 'game_started' event
+#             socketio.emit('game_started', {"message": "Game has started"}, room=game_instance_id)
+#         socketio.emit('game_data', {
+#             "game_instance_id": game_instance_id, 
+#             "player_id": id(player), 
+#             "game_state": game_instance.get_player_pov_game_state(id(player))
+#         })
+#     else:
+#         print(f"Error: Game instance {game_instance_id} not found.")
 
-    socketio.emit('game_data', {
-        "game_instance_id": game_instance_id, 
-        "player_id": id(player), 
-        "game_state": WumpusGame.get_game(game_instance_id).get_player_pov_game_state(id(player))
-    })
 
 @socketio.on('disconnect')
 def handle_disconnect():
@@ -65,7 +72,7 @@ def handle_move(data):
             WumpusGame.get_game(game_instance_id).move_player(player_id, new_position)
             game_state = WumpusGame.get_game(game_instance_id).get_player_pov_game_state(player_id)
             for player in WumpusGame.get_game(game_instance_id).players:
-                socketio.emit('move_update', {"message": "Move successful", "new_state": game_state}, room=id(player))
+                socketio.emit('move_update', {"message": "Move successful", "new_state": game_state}, room=player_id)
         else:
             raise Exception("Player not found in any game instance")
     
@@ -75,26 +82,60 @@ def handle_move(data):
 
 def find_available_game_instance():
     for game_instance_id, game_instance in game_instances.items():
-        if len(game_instance.players) < PLAYERS_TO_START and not game_instance.game_over:
+        if len(game_instance.players) == 1 and not game_instance.game_over:
             return game_instance_id
     return None
 
-def create_game_instance():
-    game_instance_id = generate_unique_id()  # Unique ID generation logic
-    game_instances[game_instance_id] = WumpusGame(game_instance_id)
-    return game_instance_id
+@socketio.on('play_game')
+def handle_play_game():
+    print("Received 'play_game' event from client")
+    find = find_available_game_instance()
+    
+    #player = Player(player_id, "Player Name")
+    if find==None:
+        game_instance_id = generate_unique_id()
+        WumpusGame.create_new_game(game_instance_id)
+        game_instance = WumpusGame.get_game(game_instance_id)
+        game_instances[game_instance_id] = game_instance
+    else:
+        game_instance_id = find
+    
+
+    if game_instance_id:
+        game_instance = game_instances[game_instance_id]
+        player_id = generate_unique_id()
+        player_name = "Name"
+        game_instance.add_player(player_id, player_name)
+        print("Before check")
+        if game_instance.check_start_conditions():
+            # game_instance.start_game()
+            print("Game started")
+            socketio.emit('game_started', {"message": "Game has started", "game_id": game_instance_id}, room=game_instance_id)
+    else:
+        new_game_id = generate_unique_id()
+        WumpusGame.create_new_game(new_game_id)
+        game_instances[new_game_id] = WumpusGame.get_game(new_game_id)
+        game_instance = game_instances[new_game_id]
+        game_instance.add_player(player_id, player_name)
+        # If it's a new game instance, no need to emit 'game_started' yet
+        socketio.emit('waiting_for_opponent', {"message": "Waiting for opponent"}, room=player_id)
 
 @socketio.on('game_state')
 def handle_game_state():
     try:
+        print(11)
         player_id = request.sid
         game_instance_id = None
+        print(game_instances)
         for id, instance in game_instances.items():
-            if player_id in [id(p) for p in instance.players]:
+            print(22)
+            print(id, instance)
+            if player_id in [p.player_id for p in instance.players]:
                 game_instance_id = id
                 break
-        
+        print(f"game state with id {game_instance_id} type {type(WumpusGame.get_game(game_instance_id))}")
         if game_instance_id:
+            print(f"game state with id {game_instance_id} type {type(WumpusGame.get_game(game_instance_id))}")
             game_state = WumpusGame.get_game(game_instance_id).get_player_pov_game_state(player_id)
             socketio.emit('game_state_update', game_state, room=player_id)
         else:
@@ -102,32 +143,63 @@ def handle_game_state():
     
     except Exception as e:
         socketio.emit('game_state_error', {"error": str(e)})
+
 @app.route('/')
-def index():
-    return render_template('mainmenu.html')
 @app.route('/mainmenu.html')
-def index():
+def main_menu():
     return render_template('mainmenu.html')
 
 @app.route('/game.html')
 def game():
     return render_template('index.html')  # Added ".html"
 
-@app.route('/createlobby.html')
-def createlobby():
-    return render_template('createlobby.html')
+# @app.route('/createlobby.html')
+# def createlobby():
+#     return render_template('createlobby.html')
 
-@app.route('/joinlobby.html')
-def joinlobby():
-    return render_template('joinlobby.html')
+# @app.route('/joinlobby.html')
+# def joinlobby():
+#     return render_template('joinlobby.html')
 
-@app.route('/startgame.html')
-def startgame():
-    return render_template('startgame.html')
+# @app.route('/startgame.html')
+# def startgame():
+#     return render_template('startgame.html')
 
 @app.route('/leaderboard.html')
 def leaderboard():
     return render_template('leaderboard.html')
+
+@app.route('/create-lobby', methods=['POST'])
+def create_lobby():
+    data = request.get_json()
+    lobby_name = data.get('name')
+
+    if lobby_name in WumpusGame.games:
+        return jsonify({"error": "Lobby already exists"}), 400
+
+    # Create new game instance with the lobby name
+    WumpusGame.create_new_game(lobby_name)
+    game_instances[lobby_name] = WumpusGame.get_game(lobby_name)
+    return jsonify({"message": "Lobby created successfully", "lobby_id": lobby_name})
+
+@app.route('/join-lobby', methods=['POST'])
+def join_lobby():
+    data = request.get_json()
+    lobby_name = data.get('lobbyID')
+
+    # Check if lobby exists
+    game = game_instances.get(lobby_name)
+    if game is None:
+        return jsonify({"error": "Lobby not found"}), 404
+
+    # Add player to the game
+    player_id = generate_unique_id()  # Generate unique player ID
+    player_name = "Player Name"  # Placeholder for player name
+    try:
+        game.add_player(player_id, player_name)
+        return jsonify({"message": "Joined lobby successfully", "lobby_id": lobby_name, "player_id": player_id})
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
 
 if __name__ == '__main__':
     socketio.run(app, debug=True, host='0.0.0.0', port=5000)
